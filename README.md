@@ -9,11 +9,8 @@
 ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═══╝
 ```
 
-*software engineer · web × machine learning*
+*software engineer*
 
-[![Portfolio](https://img.shields.io/badge/portfolio-000?style=flat-square&logo=vercel&logoColor=white)](https://yourportfolio.dev)
-[![LinkedIn](https://img.shields.io/badge/linkedin-0A66C2?style=flat-square&logo=linkedin&logoColor=white)](https://linkedin.com/in/nosherwantahir)
-[![Email](https://img.shields.io/badge/email-EA4335?style=flat-square&logo=gmail&logoColor=white)](mailto:your@email.com)
 
 </div>
 
@@ -55,15 +52,6 @@ class Nosherwan:
 
 ---
 
-### github stats
-
-<div align="center">
-
-![Nosherwan's GitHub Stats](https://github-readme-stats.vercel.app/api?username=nosherwantahir&show_icons=true&theme=dark&hide_border=true&bg_color=0d1117&title_color=ffffff&text_color=8b949e&icon_color=58a6ff)
-&nbsp;&nbsp;
-![Top Languages](https://github-readme-stats.vercel.app/api/top-langs/?username=nosherwantahir&layout=compact&theme=dark&hide_border=true&bg_color=0d1117&title_color=ffffff&text_color=8b949e)
-
-</div>
 
 ---
 
