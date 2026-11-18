@@ -1,20 +1,12 @@
-<a href="https://nosherwantahir.vercel.app/"><img src="assets/hero.svg" width="100%" alt="Nosherwan, software engineer. A car drives through a city at dusk where each building is one week of GitHub contributions."></a>
+<a href="https://nosherwantahir.vercel.app/"><img src="assets/hero.svg" width="100%" alt="Nosherwan, AI and Web Engineer. An isometric city at dusk where each building is one day of GitHub contributions, with five projects marked on the map."></a>
 
-Real-time systems, local AI and developer tools.
+I build AI that runs close to the user and the web products around it.
 
-**[NPC_AWARE](https://github.com/nosherwan537/Npc_aware)**<br>
-Game characters with long-term memory, running entirely on your laptop.
+<a href="https://github.com/nosherwan537/Npc_aware"><img src="assets/loc-npc.svg" width="100%" alt="NPC_AWARE: game characters that remember you, offline. Built with Rust, Qdrant and Three.js."></a>
+<a href="https://github.com/nosherwan537/guardian-rep"><img src="assets/loc-guardian.svg" width="100%" alt="npm-guardian: stops malicious npm packages before install."></a>
+<a href="https://github.com/nosherwan537/waitaminute"><img src="assets/loc-wait.svg" width="100%" alt="Wait a Minute: one key turns the last minute of video into a note."></a>
+<a href="https://github.com/nosherwan537/Context-Aware-Multiclass-Hope-Speech-Detection"><img src="assets/loc-hope.svg" width="100%" alt="Hope in Roman Urdu: an open dataset and model for detecting hope speech."></a>
+<a href="https://github.com/nosherwan537/githide-server-client"><img src="assets/loc-githide.svg" width="100%" alt="githide: contributor to the server and dashboard for encrypted .env sharing."></a>
+<img src="assets/stack.svg" width="100%" alt="AI: PyTorch, Transformers, RAG, llama.cpp, Qdrant, LangChain. Web: TypeScript, React, Next.js, Node.js, FastAPI, PostgreSQL.">
 
-**[npm-guardian](https://github.com/nosherwan537/guardian-rep)**<br>
-Catches malicious npm packages before their install scripts run.
-
-**[Wait a Minute](https://github.com/nosherwan537/waitaminute)**<br>
-Press one key and the last 60 seconds of a video becomes a note.
-
-**[Hope in Roman Urdu](https://github.com/nosherwan537/Context-Aware-Multiclass-Hope-Speech-Detection)**<br>
-A public dataset and dual-head model for hope speech detection.
-
-**[githide](https://github.com/nosherwan537/githide-server-client)**<br>
-Contributor to the server and dashboard for encrypted `.env` sharing.
-
-[Portfolio](https://nosherwantahir.vercel.app/) &nbsp;·&nbsp; [LinkedIn](https://www.linkedin.com/in/nosherwan-tahir-7a3799352)
+[See my portfolio](https://nosherwantahir.vercel.app/) &nbsp;·&nbsp; [Message me on LinkedIn](https://www.linkedin.com/in/nosherwan-tahir-7a3799352)
