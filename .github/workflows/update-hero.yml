@@ -1,0 +1,36 @@
+name: Update hero
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-hero
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Draw the hero from the public contribution calendar
+        run: |
+          python3 -m venv /tmp/hero
+          /tmp/hero/bin/pip install --quiet -r .github/hero/requirements.txt
+          /tmp/hero/bin/python .github/hero/build_hero.py
+      - name: Commit if the calendar changed
+        run: |
+          git add assets/hero.svg
+          if git diff --cached --quiet; then
+            echo "No change."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: refresh contribution hero"
+          git push
