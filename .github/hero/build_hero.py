@@ -1,5 +1,5 @@
-"""Draws assets/hero.svg from the public GitHub contribution calendar."""
-import datetime as dt, html, math, pathlib, re, sys, urllib.request
+"""Draws assets/hero.svg: a city at dusk built from the public contribution calendar."""
+import datetime as dt, html, math, pathlib, random, re, sys, urllib.request
 import uharfbuzz as hb
 from fontTools.ttLib import TTFont
 from fontTools.pens.svgPathPen import SVGPathPen
@@ -9,8 +9,11 @@ USER = "nosherwan537"
 HERE = pathlib.Path(__file__).resolve().parent
 TARGET = HERE.parent.parent / "assets" / "hero.svg"
 INK, BONE, MUTED, ACCENT = "#0C1411", "#F1EADB", "#A9A99B", "#FF6A3D"
-W, H, M, N = 1200, 790, 64, 420
-LOOP = 20  # seconds: 2 waiting, 16 driving, 2 holding the final score
+BLOCK_A, BLOCK_B, FAR = "#101A17", "#16211D", "#6E3324"
+W, H, M = 1200, 760, 64
+KERB, LANE, CAR_Y = 640, 706, 694
+LOOP = 22  # seconds: 2 waiting, 18 driving, 2 holding the final score
+START, END = -150, W + 150
 
 
 class Face:
@@ -69,84 +72,111 @@ def fetch_days():
     return days
 
 
-def smooth(v, r):
-    return [sum(v[max(0, i - r):i + r + 1]) / len(v[max(0, i - r):i + r + 1]) for i in range(len(v))]
-
-
-def poly(p):
-    return "M" + " ".join(f"{x:.1f} {y:.1f}" for x, y in p)
-
-
 days = fetch_days()
 start, end = min(days), max(days)
 total = sum(days.values())
 weeks = (end - start).days // 7 + 1
-grid = [[0.0] * weeks for _ in range(7)]
+weekly = [0] * weeks
 for d, c in days.items():
-    grid[(d.weekday() + 1) % 7][(d - start).days // 7] = c
-top = max(max(r) for r in grid)
+    weekly[(d - start).days // 7] += c
 peak_day = max(sorted(days), key=days.get)
-week_of = lambda x: -3 + x / W * (weeks + 5)
-x_of = lambda wk: (wk + 3) / (weeks + 5) * W
+peak_week = (peak_day - start).days // 7
+recent = sum(c for d, c in days.items() if (end - d).days < 7)
+heat = sum(recent >= t for t in (1, 10, 25, 50, 100))
+top = max(weekly)
+bw = W / weeks
+when = lambda x: .1 + .8 * (x - START) / (END - START)
 
+# ---------- sky ----------
+b = [f'<rect y="{y}" width="{W}" height="{h}" fill="{c}"/>' for y, h, c in
+     ((360, 50, "#1D1C19"), (410, 50, "#432820"), (460, 60, "#853A26"), (520, 120, "#C9552F"))]
+b.append(f'<circle cx="880" cy="540" r="92" fill="#FFB98A"/>')
 
-def ridge(row):
-    out = []
-    for i in range(N + 1):
-        t = -3 + i / N * (weeks + 5)
-        out.append(sum(math.sqrt(row[j] / top) * math.exp(-((t - j) ** 2) / (2 * .72 ** 2)) for j in range(weeks)))
-    return out
+# ---------- far skyline, then one building per week ----------
+r = random.Random(7)
+x, far = 0, f"M0 {KERB}"
+while x < W:
+    w = r.choice((34, 46, 58, 72))
+    y = KERB - r.randint(50, 130)
+    far += f"V{y}H{x + w}"
+    x += w
+b.append(f'<path d="{far}V{KERB}Z" fill="{FAR}"/>')
 
-
-base, gap, amp = 566, 25, 152
-curves = [ridge(r) for r in grid]
-norm = max(max(c) for c in curves)
-lines = [[(i / N * W, base + k * gap - v / norm * amp) for i, v in enumerate(c)] for k, c in enumerate(curves)]
-
-# The road is the skyline of all seven ridges, eased so a car can drive it.
-sky = smooth(smooth([min(l[i][1] for l in lines) for i in range(N + 1)], 5), 4)
-road = [(-90, sky[0])] + [(i / N * W, y) for i, y in enumerate(sky)][::2] + [(W + 90, sky[-1])]
-lengths = [0.0]
-for a, b in zip(road, road[1:]):
-    lengths.append(lengths[-1] + math.dist(a, b))
-
-
-def at(frac):
-    goal = frac * lengths[-1]
-    for i in range(1, len(road)):
-        if lengths[i] >= goal:
-            k = (goal - lengths[i - 1]) / (lengths[i] - lengths[i - 1] or 1)
-            return (road[i - 1][0] + k * (road[i][0] - road[i - 1][0]),
-                    road[i - 1][1] + k * (road[i][1] - road[i - 1][1]))
-    return road[-1]
-
-
-def tilt(frac, span=30, limit=24):
-    """Body angle measured across the wheelbase, capped so the car stays upright."""
-    d = span / lengths[-1]
-    a, c = at(max(0, frac - d)), at(min(1, frac + d))
-    return max(-limit, min(limit, math.degrees(math.atan2(c[1] - a[1], c[0] - a[0]))))
-
-
-# Score: real running total as the car passes each week.
-weekly = [sum(r[w] for r in grid) for w in range(weeks)]
-samples = 64
-times, scores, tilts = [0.0], [0], [tilt(0)]
-for i in range(samples + 1):
-    s = i / samples
-    wk = week_of(at(s)[0])
-    n = sum(v for w, v in enumerate(weekly) if w <= wk)
-    times.append(.1 + .8 * s)
-    scores.append(int(n))
-    tilts.append(tilt(s))
+blocks, lit, static_lit, scores, times = [], [], [], [0], [0.0]
+for j, v in enumerate(weekly):
+    x = j * bw
+    h = 34 + math.sqrt(v / top) * 196
+    y = KERB - h
+    blocks.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw + .6:.1f}" height="{h:.1f}" fill="{BLOCK_B if j % 2 else BLOCK_A}"/>')
+    rr = random.Random((start + dt.timedelta(weeks=j)).isoformat())
+    d = ""
+    for row in range(int((h - 16) // 15)):
+        for col in range(3):
+            if rr.random() < .55:
+                d += f"M{x + 4 + col * 5.4:.1f} {y + 9 + row * 15:.1f}h3v7h-3z"
+    if d:
+        f = when(x + bw / 2)
+        lit.append(f'<path d="{d}" fill="#FFD9A8" opacity="0"><animate attributeName="opacity" dur="{LOOP}s" '
+                   f'repeatCount="indefinite" keyTimes="0;{f:.4f};{f + .004:.4f};.96;1" values="0;0;1;1;0"/></path>')
+        static_lit.append(f'<path d="{d}" fill="#FFD9A8"/>')
+    times.append(when(x + bw / 2))
+    scores.append(sum(weekly[:j + 1]))
 scores[-1] = total
-times.append(1.0); scores.append(total); tilts.append(tilts[-1])
+times.append(1.0); scores.append(total)
 kt = ";".join(f"{t:.4f}" for t in times)
+b += blocks
+b.append(f'<g class="m">{"".join(lit)}</g><g class="s">{"".join(static_lit)}</g>')
 
+# Flag on the roof of the week holding the busiest day.
+fx = (peak_week + .5) * bw
+fy = KERB - (34 + math.sqrt(weekly[peak_week] / top) * 196)
+hit = when(fx)
+b.append(f'<g transform="translate({fx:.1f} {fy:.1f})"><path d="M0 0V-40" stroke="{ACCENT}" stroke-width="3"/>'
+         f'<path d="M0 -40L{-24 if fx > W - 40 else 24} -32L0 -24Z" fill="{ACCENT}"/></g>')
+
+
+def palm(x, h, lean):
+    tx, ty = x + lean, KERB - h
+    fronds = ""
+    for dx, dy in ((-62, 14), (-48, -20), (-16, -38), (22, -36), (52, -16), (64, 16)):
+        cx, cy = tx + dx * .55, ty + dy - 16
+        ex, ey = tx + dx, ty + dy + 22
+        fronds += f"M{tx} {ty}Q{cx:.0f} {cy:.0f} {ex} {ey}Q{cx:.0f} {cy + 15:.0f} {tx} {ty}Z"
+    return (f'<path d="M{x - 5} {KERB}Q{x + lean * .2:.0f} {KERB - h * .55:.0f} {tx - 2} {ty}h4'
+            f'Q{x + 7 + lean * .25:.0f} {KERB - h * .5:.0f} {x + 6} {KERB}Z{fronds}" fill="{INK}"/>')
+
+
+b += [palm(214, 150, 14), palm(248, 104, -12), palm(1010, 132, -14)]
+
+# ---------- street ----------
+b.append(f'<rect y="{KERB}" width="{W}" height="{H - KERB}" fill="{INK}"/>'
+         f'<path d="M0 {KERB + 1}H{W}" stroke="{BONE}" stroke-opacity=".55" stroke-width="2"/>')
+b.append(f'<path class="m" d="M-80 {LANE}H{W + 80}" stroke="{BONE}" stroke-opacity=".3" stroke-width="3" stroke-dasharray="34 46">'
+         f'<animate attributeName="stroke-dashoffset" from="80" to="0" dur=".8s" repeatCount="indefinite"/></path>')
+
+
+def wheel(cx):
+    return (f'<g transform="translate({cx} -7)"><circle r="7" fill="{INK}" stroke="{BONE}" stroke-width="2.5"/>'
+            f'<path d="M-4 0H4M0 -4V4" stroke="{BONE}" stroke-width="1.5"><animateTransform attributeName="transform" '
+            f'type="rotate" from="0" to="360" dur=".3s" repeatCount="indefinite"/></path></g>')
+
+
+car = (f'<path d="M34 -15L135 -31V-1L34 -8Z" fill="url(#beam)"/>'
+       f'<path d="M-34 -7V-15C-34 -18 -32 -20 -28 -21L-14 -23L-3 -32C-1 -34 2 -35 5 -35H15C18 -35 20 -34 22 -32L29 -22'
+       f'C33 -21 36 -18 36 -14V-7Z" fill="{BONE}"/>'
+       f'<path d="M-7 -24L0 -30C1 -31 3 -32 5 -32H8V-24ZM11 -24V-32H15C17 -32 18 -31 19 -30L24 -24Z" fill="{INK}"/>'
+       f'<rect x="-34" y="-17" width="6" height="4" fill="{ACCENT}"/>{wheel(-20)}{wheel(22)}')
+b.append(f'<g class="m"><g><g transform="scale(1.45)">{car}</g><animateMotion dur="{LOOP}s" repeatCount="indefinite" '
+         f'calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;.1;.9;1" path="M{START} {CAR_Y}H{END}"/></g></g>')
+b.append(f'<g class="s" transform="translate(760 {CAR_Y}) scale(1.45)">{car}</g>')
+
+# ---------- HUD ----------
+pip = "".join(f'<path d="M{M + 92 + i * 26} 52l14 10l-14 10h-9l14 -10l-14 -10z" fill="{ACCENT if i < heat else "#34403A"}"/>' for i in range(5))
+b += [text("HEAT", MONO5, 26, M, 72, MUTED, track=3), pip]
 digits = f"{total}"
-fs, lh = 28, 40
+fs, lh = 30, 42
 cw = MONO5.width("0", fs)
-tail = " contributions, last 12 months"
+tail = " contributions"
 tail_w = MONO.width(tail, fs)
 comma_w = cw if len(digits) > 3 else 0
 x = W - M - tail_w - comma_w - cw * len(digits)
@@ -156,78 +186,48 @@ for i in range(len(digits)):
     place = 10 ** (len(digits) - 1 - i)
     vals = ";".join(f"0 {-(v // place % 10) * lh}" for v in scores)
     strip = "".join(f'<use href="#n{d}" y="{d * lh}"/>' for d in range(10))
-    score.append(f'<g transform="translate({x:.1f} 78)" clip-path="url(#dc)"><g fill="{BONE}">{strip}'
+    score.append(f'<g transform="translate({x:.1f} 72)" clip-path="url(#dc)"><g fill="{BONE}">{strip}'
                  f'<animateTransform attributeName="transform" type="translate" calcMode="discrete" dur="{LOOP}s" '
                  f'repeatCount="indefinite" keyTimes="{kt}" values="{vals}"/></g></g>')
-    final.append(text(digits[i], MONO5, fs, x, 78))
+    final.append(text(digits[i], MONO5, fs, x, 72))
     x += cw
     if len(digits) - 1 - i == 3:
-        comma = text(",", MONO5, fs, x, 78, MUTED)
+        comma = text(",", MONO5, fs, x, 72, MUTED)
         score.append(comma); final.append(comma)
         x += cw
-
-b = [text("SOFTWARE ENGINEER", MONO, 28, M, 78, MUTED, track=3),
-     f'<g class="m">{"".join(score)}</g><g class="s">{"".join(final)}</g>',
-     text(tail, MONO, fs, W - M, 78, MUTED, "end")]
+b += [f'<g class="m">{"".join(score)}</g><g class="s">{"".join(final)}</g>', text(tail, MONO, fs, W - M, 72, MUTED, "end")]
 size = 100 * (W - 2 * M) / SERIF.width("Nosherwan", 100)
-b += [text("Nosherwan", SERIF, size, M - 6, 274),
-      text("I build for the web and train the models behind it.", ITALIC, 46, M, 350)]
+b += [text("Nosherwan", SERIF, size, M - 6, 262),
+      text("I build for the web and train the models behind it.", ITALIC, 46, M, 336)]
 
-tones = ["#101915", "#101A16", "#111B17", "#121C18", "#121D19", "#131E1A", "#141F1B"]
-for k, p in enumerate(lines):
-    d = poly(p)
-    b.append(f'<path d="{d} L{W} {H} L0 {H}Z" fill="{tones[k]}"/>')
-    b.append(f'<path class="r" style="animation-delay:{k * .11:.2f}s" pathLength="1" d="{d}" fill="none" '
-             f'stroke="{BONE}" stroke-opacity="{.26 + .4 * k / 6:.2f}" stroke-width="1.75"/>')
-road_d = poly(road)
-b.append(f'<path class="r" style="animation-delay:.7s" pathLength="1" d="{road_d}" fill="none" stroke="{BONE}" stroke-width="3" stroke-linejoin="round"/>')
+# Minimap: the blip runs the route in step with the car.
+cx, cy, rad = M + 54, 664, 58
+route = f"M{cx - 44} {cy + 18}H{cx - 14}V{cy - 16}H{cx + 16}V{cy + 10}H{cx + 44}"
+streets = "".join(f'<path d="M{cx - 60} {cy + o}H{cx + 60}M{cx + o} {cy - 60}V{cy + 60}"/>' for o in (-34, -16, 10, 18, 40))
+b.append(f'<circle cx="{cx}" cy="{cy}" r="{rad}" fill="{INK}"/><g clip-path="url(#mm)"><g stroke="{BONE}" stroke-opacity=".16" stroke-width="3">{streets}</g>'
+         f'<path d="{route}" fill="none" stroke="{ACCENT}" stroke-width="3.5"/></g>'
+         f'<circle cx="{cx}" cy="{cy}" r="{rad}" fill="none" stroke="{BONE}" stroke-width="3"/>'
+         f'<circle class="s" cx="{cx + 16}" cy="{cy}" r="6" fill="{BONE}"/>'
+         f'<g class="m"><circle r="6" fill="{BONE}"><animateMotion dur="{LOOP}s" repeatCount="indefinite" calcMode="linear" '
+         f'keyPoints="0;0;1;1" keyTimes="0;.1;.9;1" path="{route}"/></circle></g>')
 
-# Checkpoint flag at the busiest day. The ring fires as the car arrives.
-px = x_of((peak_day - start).days // 7)
-i = min(range(len(road)), key=lambda n: abs(road[n][0] - px))
-px, py = road[i]
-hit = .1 + .8 * lengths[i] / lengths[-1]
-b.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="8" fill="none" stroke="{ACCENT}" stroke-width="3" opacity="0" class="m">'
-         f'<animate attributeName="r" dur="{LOOP}s" repeatCount="indefinite" keyTimes="0;{hit:.4f};{hit + .05:.4f};1" values="8;8;46;46"/>'
-         f'<animate attributeName="opacity" dur="{LOOP}s" repeatCount="indefinite" keyTimes="0;{hit - .001:.4f};{hit:.4f};{hit + .05:.4f};1" values="0;0;1;0;0"/></circle>')
-b.append(f'<g transform="translate({px:.1f} {py:.1f})"><path d="M0 0V-46" stroke="{ACCENT}" stroke-width="3"/>'
-         f'<path d="M0 -46L26 -37L0 -28Z" fill="{ACCENT}"/></g>')
+a = "Reach the busiest day: "
+c = f"{days[peak_day]} on {peak_day.day} {peak_day:%b}"
+sw = MONO.width(a, 28) + MONO5.width(c, 28)
+sx = (W - sw) / 2 + 60
+b += [text(a, MONO, 28, sx, H - 18, BONE), text(c, MONO5, 28, sx + MONO.width(a, 28), H - 18, ACCENT)]
 
-
-def wheel(cx):
-    return (f'<g transform="translate({cx} -7)"><circle r="7" fill="{INK}" stroke="{BONE}" stroke-width="2.5"/>'
-            f'<path d="M-4 0H4M0 -4V4" stroke="{BONE}" stroke-width="1.5"><animateTransform attributeName="transform" '
-            f'type="rotate" from="0" to="360" dur=".35s" repeatCount="indefinite"/></path></g>')
-
-
-car = (f'<path d="M34 -14L150 -46V8L34 -7Z" fill="url(#beam)"/>'
-       f'<path d="M-34 -7V-15C-34 -18 -32 -20 -28 -21L-14 -23L-3 -32C-1 -34 2 -35 5 -35H15C18 -35 20 -34 22 -32L29 -22'
-       f'C33 -21 36 -18 36 -14V-7Z" fill="{BONE}"/>'
-       f'<path d="M-7 -24L0 -30C1 -31 3 -32 5 -32H8V-24ZM11 -24V-32H15C17 -32 18 -31 19 -30L24 -24Z" fill="{INK}"/>'
-       f'<rect x="-34" y="-17" width="6" height="4" fill="{ACCENT}"/>{wheel(-20)}{wheel(22)}')
-spin = ";".join(f"{a:.1f}" for a in tilts)
-b.append(f'<g class="m"><g><g>{car}<animateTransform attributeName="transform" type="rotate" dur="{LOOP}s" '
-         f'repeatCount="indefinite" keyTimes="{kt}" values="{spin}"/></g><animateMotion dur="{LOOP}s" repeatCount="indefinite" '
-         f'calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;.1;.9;1" path="{road_d}"/></g></g>')
-parked = max(0, lengths[i] / lengths[-1] - 70 / lengths[-1])
-sx, sy = at(parked)
-b.append(f'<g class="s" transform="translate({sx:.1f} {sy:.1f}) rotate({tilt(parked):.1f})">{car}</g>')
-
-b.append(f'<rect y="{H - 66}" width="{W}" height="66" fill="{tones[-1]}"/>')
-b.append(text("One ridge per weekday, one step per week.", MONO, 28, M, H - 24, MUTED))
-b.append(text(f"Peak: {days[peak_day]} on {peak_day.day} {peak_day:%b}", MONO5, 28, W - M, H - 24, ACCENT, "end"))
-
-css = (".r{stroke-dasharray:1;stroke-dashoffset:1;animation:d 1.7s cubic-bezier(.3,.7,.2,1) forwards}.s{display:none}"
-       "@keyframes d{to{stroke-dashoffset:0}}"
-       "@media (prefers-reduced-motion:reduce){.r{animation:none;stroke-dashoffset:0}.m{display:none}.s{display:inline}}")
+css = (".s{display:none}@media (prefers-reduced-motion:reduce){.m{display:none}.s{display:inline}}")
 title = "Nosherwan, software engineer"
-desc = f"A small car drives over a mountain range drawn from {total:,} GitHub contributions, past a flag on the busiest day."
+desc = (f"A car drives through a city at dusk. Each building is one week of GitHub activity, {total:,} contributions in all, "
+        "and its windows light up as the car passes.")
 doc = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-labelledby="t d">'
        f'<title id="t">{html.escape(title)}</title><desc id="d">{html.escape(desc)}</desc><style>{css}</style><defs>{defs}'
        f'<clipPath id="c"><rect width="{W}" height="{H}" rx="20"/></clipPath>'
-       f'<clipPath id="dc"><rect x="-1" y="-27" width="{cw + 2:.1f}" height="36"/></clipPath>'
-       f'<linearGradient id="beam"><stop offset="0" stop-color="{BONE}" stop-opacity=".42"/><stop offset="1" stop-color="{BONE}" stop-opacity="0"/></linearGradient></defs>'
+       f'<clipPath id="dc"><rect x="-1" y="-29" width="{cw + 2:.1f}" height="38"/></clipPath>'
+       f'<clipPath id="mm"><circle cx="{cx}" cy="{cy}" r="{rad}"/></clipPath>'
+       f'<linearGradient id="beam"><stop offset="0" stop-color="#FFD9A8" stop-opacity=".6"/><stop offset="1" stop-color="#FFD9A8" stop-opacity="0"/></linearGradient></defs>'
        f'<g clip-path="url(#c)"><rect width="{W}" height="{H}" fill="{INK}"/>{"".join(b)}</g></svg>')
 TARGET.parent.mkdir(exist_ok=True)
 TARGET.write_text(doc)
-print(f"{total} contributions, peak {days[peak_day]} on {peak_day}, {len(doc) / 1024:.0f} KB")
+print(f"{total} contributions, heat {heat} ({recent} in 7 days), peak {days[peak_day]} on {peak_day}, {len(doc) / 1024:.0f} KB")
